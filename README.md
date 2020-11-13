@@ -20,6 +20,8 @@ ROS package for clustering points
         
    <param name="min_cluster_size" value="20" />
    <param name="max_cluster_size" value="500" />
+   
+   <param name="oriented_rectangle_fitting_distance" value="20" />
         
    <param name="seg_num" value="5" />
    <rosparam param="seg_distance" > [15, 30, 45, 60, 120] </rosparam>
@@ -27,6 +29,7 @@ ROS package for clustering points
    ```
     - `sub_topic`指明订阅的点云话题。
     - `pub_ground_topic`指明发布的聚类结果话题。
+    - `oriented_rectangle_fitting_distance`为拟合带方向包络框的限制距离。
     - `seg_distance`为不同的聚类距离。
     - `cluster_distance`为不同的聚类阈值。
 
