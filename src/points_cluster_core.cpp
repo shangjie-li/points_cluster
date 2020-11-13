@@ -50,7 +50,8 @@ void EuClusterCore::find_rect(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc, pcl::Po
 {
     double reference_dis_sum_min = std::numeric_limits<float>::max();
     int ii_max = (theta_max - theta_min) / theta_interval;
-    
+
+#pragma omp parallel for
     //以不同方位角拟合矩形
     for (int ii = 0; ii < ii_max; ii++)
     {

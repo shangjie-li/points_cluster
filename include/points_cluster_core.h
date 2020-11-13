@@ -1,5 +1,5 @@
 #pragma once
-
+#include "omp.h"
 #include <ros/ros.h>
 
 #include <pcl_conversions/pcl_conversions.h>
