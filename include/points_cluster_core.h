@@ -40,6 +40,7 @@ private:
     double max_cluster_size_;
     
     double oriented_rectangle_fitting_distance_;
+    double fitting_accuracy_;
     
     int seg_num_;
     std::vector<double> seg_distance_;

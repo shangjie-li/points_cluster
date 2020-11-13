@@ -10,6 +10,7 @@
         <param name="max_cluster_size" value="4000" />
         
         <param name="oriented_rectangle_fitting_distance" value="20" />
+        <param name="fitting_accuracy" value="2" />
         
         <param name="seg_num" value="5" />
         <rosparam param="seg_distance" > [15, 30, 45, 60, 75] </rosparam>

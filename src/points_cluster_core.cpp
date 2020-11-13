@@ -9,6 +9,7 @@ EuClusterCore::EuClusterCore(ros::NodeHandle &nh)
     nh.param<double>("max_cluster_size", max_cluster_size_, 5000);
     
     nh.param<double>("oriented_rectangle_fitting_distance", oriented_rectangle_fitting_distance_, 20);
+    nh.param<double>("fitting_accuracy", fitting_accuracy_, 2);
     
     nh.param<int>("seg_num_", seg_num_, 5);
     ros::param::get("~seg_distance",seg_distance_);
@@ -202,12 +203,10 @@ void EuClusterCore::cluster_segment(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc,
         //拟合带方位角的矩形
         if (local_pc_dis < oriented_rectangle_fitting_distance_)
         {
-            
-            double theta_interval = 2;
             double theta_min = 0;
             double theta_max = 90;
             
-            find_rect(local_pc, p_p1_best, p_p2_best, p_p3_best, p_p4_best, theta_best, theta_min, theta_max, theta_interval);
+            find_rect(local_pc, p_p1_best, p_p2_best, p_p3_best, p_p4_best, theta_best, theta_min, theta_max, fitting_accuracy_);
         }
         
         //拟合不带方位角的矩形
