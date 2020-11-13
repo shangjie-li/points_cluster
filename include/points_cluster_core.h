@@ -27,6 +27,8 @@
 
 #include <sensor_msgs/PointCloud2.h>
 
+#define PI 3.1415926
+
 class EuClusterCore
 {
 
@@ -37,31 +39,27 @@ private:
     double min_cluster_size_;
     double max_cluster_size_;
     
+    double oriented_rectangle_fitting_distance_;
+    
     int seg_num_;
     std::vector<double> seg_distance_;
     std::vector<double> cluster_distance_;
-
-    struct Detected_Obj
-    {
-        jsk_recognition_msgs::BoundingBox bounding_box_;
-
-        pcl::PointXYZ min_point_;
-        pcl::PointXYZ max_point_;
-        pcl::PointXYZ centroid_;
-    };
 
     ros::Subscriber sub_pointcloud;
     ros::Publisher pub_boundingboxes;
 
     std_msgs::Header pointcloud_header;
+    
+    double point_project(pcl::PointXYZ &p1, pcl::PointXYZ &p2, pcl::PointXYZ &pp, pcl::PointXYZ &pp_);
+    
+    void find_rect(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc, pcl::PointXYZ &p_p1_best, pcl::PointXYZ &p_p2_best, pcl::PointXYZ &p_p3_best, pcl::PointXYZ &p_p4_best,
+               double &theta_best, double theta_min, double theta_max, double theta_interval);
 
-    void cluster_by_distance(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc, std::vector<Detected_Obj> &obj_list);
+    void cluster_segment(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc, double in_max_cluster_distance, std::vector<jsk_recognition_msgs::BoundingBox> &obj_list);
 
-    void cluster_segment(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc, double in_max_cluster_distance, std::vector<Detected_Obj> &obj_list);
+    void cluster_by_distance(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc, std::vector<jsk_recognition_msgs::BoundingBox> &obj_list);
 
     void point_cb(const sensor_msgs::PointCloud2ConstPtr &in_cloud_ptr);
-
-    void publish_cloud(const ros::Publisher &in_publisher, const pcl::PointCloud<pcl::PointXYZ>::Ptr in_cloud_to_publish_ptr, const std_msgs::Header &in_header);
 
 public:
     EuClusterCore(ros::NodeHandle &nh);
