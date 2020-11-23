@@ -179,7 +179,7 @@ void EuClusterCore::cluster_segment(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc,
     for (size_t i = 0; i < local_indices.size(); i++)
     {
         pcl::PointCloud<pcl::PointXYZ>::Ptr local_pc(new pcl::PointCloud<pcl::PointXYZ>);
-        double local_pc_dis = - std::numeric_limits<float>::max();
+        double local_pc_dis = std::numeric_limits<float>::max();
         //遍历每个点，建立点簇云
         for (auto pit = local_indices[i].indices.begin(); pit != local_indices[i].indices.end(); ++pit)
         {
@@ -190,7 +190,7 @@ void EuClusterCore::cluster_segment(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc,
             local_pc->points.push_back(p);
             
             double dis = sqrt(pow(p.x, 2) + pow(p.y, 2));
-            if (dis > local_pc_dis)
+            if (dis < local_pc_dis)
                 local_pc_dis = dis;
         }
         
