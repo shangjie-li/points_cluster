@@ -36,6 +36,9 @@ private:
     std::string sub_topic_;
     std::string pub_topic_;
     
+    double min_cluster_points_num_;
+    double max_cluster_points_num_;
+    
     double min_cluster_size_;
     double max_cluster_size_;
     

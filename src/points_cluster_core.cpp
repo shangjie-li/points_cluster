@@ -5,10 +5,13 @@ EuClusterCore::EuClusterCore(ros::NodeHandle &nh)
     nh.param<std::string>("sub_topic", sub_topic_, "/rslidar_points_no_ground");
     nh.param<std::string>("pub_topic", pub_topic_, "/clustered_bounding_boxes");
     
-    nh.param<double>("min_cluster_size", min_cluster_size_, 20);
-    nh.param<double>("max_cluster_size", max_cluster_size_, 5000);
+    nh.param<double>("min_cluster_points_num", min_cluster_points_num_, 5);
+    nh.param<double>("max_cluster_points_num", max_cluster_points_num_, 4000);
     
-    nh.param<double>("oriented_rectangle_fitting_distance", oriented_rectangle_fitting_distance_, 20);
+    nh.param<double>("min_cluster_size", min_cluster_size_, 0.1);
+    nh.param<double>("max_cluster_size", max_cluster_size_, 10);
+    
+    nh.param<double>("oriented_rectangle_fitting_distance", oriented_rectangle_fitting_distance_, 10);
     nh.param<double>("fitting_accuracy", fitting_accuracy_, 2);
     
     nh.param<int>("seg_num_", seg_num_, 5);
@@ -170,8 +173,8 @@ void EuClusterCore::cluster_segment(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc,
     pcl::EuclideanClusterExtraction<pcl::PointXYZ> euclid;
     euclid.setInputCloud(cloud_2d);
     euclid.setClusterTolerance(in_max_cluster_distance);
-    euclid.setMinClusterSize(min_cluster_size_);
-    euclid.setMaxClusterSize(max_cluster_size_);
+    euclid.setMinClusterSize(min_cluster_points_num_);
+    euclid.setMaxClusterSize(max_cluster_points_num_);
     euclid.setSearchMethod(tree);
     euclid.extract(local_indices);
 
@@ -269,6 +272,17 @@ void EuClusterCore::cluster_segment(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc,
         bounding_box.dimensions.x = sqrt(pow(p_p1_best.x - p_p2_best.x, 2) + pow(p_p1_best.y - p_p2_best.y, 2));
         bounding_box.dimensions.y = sqrt(pow(p_p1_best.x - p_p4_best.x, 2) + pow(p_p1_best.y - p_p4_best.y, 2));
         bounding_box.dimensions.z = max_z - min_z;
+        
+        //根据边界框尺寸筛选聚类点簇
+        double box_size = 0;
+        box_size = (bounding_box.dimensions.x > box_size) ? bounding_box.dimensions.x : box_size;
+        box_size = (bounding_box.dimensions.y > box_size) ? bounding_box.dimensions.y : box_size;
+        box_size = (bounding_box.dimensions.z > box_size) ? bounding_box.dimensions.z : box_size;
+        
+        if (box_size < min_cluster_size_ || box_size > max_cluster_size_)
+        {
+            continue;
+        }
 
         obj_list.push_back(bounding_box);
     }

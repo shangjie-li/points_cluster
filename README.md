@@ -17,11 +17,14 @@ ROS package for clustering points
    ```Shell
    <param name="sub_topic" value="/rslidar_points_no_ground" />
    <param name="pub_topic" value="/clustered_bounding_boxs" />
-        
-   <param name="min_cluster_size" value="20" />
-   <param name="max_cluster_size" value="500" />
    
-   <param name="oriented_rectangle_fitting_distance" value="20" />
+   <param name="min_cluster_points_num" value="5" />
+   <param name="max_cluster_points_num" value="4000" />
+   
+   <param name="min_cluster_size" value="0.1" />
+   <param name="max_cluster_size" value="10" />
+   
+   <param name="oriented_rectangle_fitting_distance" value="10" />
    <param name="fitting_accuracy" value="2" />
         
    <param name="seg_num" value="5" />
