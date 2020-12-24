@@ -41,6 +41,6 @@ ROS package for clustering points
 ## 运行
  - 启动`points_cluster`
    ```Shell
-   roslauch points_cluster points_cluster.launch
+   roslaunch points_cluster points_cluster.launch
    ```
 
