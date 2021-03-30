@@ -23,6 +23,7 @@ EuCluster::EuCluster(ros::NodeHandle &nh)
     sub_ = nh.subscribe(sub_topic_, 1, &EuCluster::callback, this);
     pub_ = nh.advertise<visualization_msgs::MarkerArray>(pub_topic_, 1);
     ros::spin();
+    
 }
 
 EuCluster::~EuCluster(){}
