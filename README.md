@@ -15,28 +15,32 @@ ROS package for clustering points
 ## 参数配置
  - 修改`points_cluster/launch/points_cluster.launch`
    ```Shell
-   <param name="sub_topic" value="/rslidar_points_no_ground" />
-   <param name="pub_topic" value="/clustered_bounding_boxs" />
+   <param name="sub_topic" value="/pandar_points_no_ground" />
+   <param name="pub_topic" value="/objects" />
+
+   <param name="show_objects_num" value="true"/>
+   <param name="show_time" value="true"/>
    
    <param name="min_cluster_points_num" value="5" />
-   <param name="max_cluster_points_num" value="4000" />
+   <param name="max_cluster_points_num" value="10000" />
    
-   <param name="min_cluster_size" value="0.1" />
-   <param name="max_cluster_size" value="10" />
+   <param name="min_cluster_size" value="0.2" />
+   <param name="max_cluster_size" value="4" />
    
-   <param name="oriented_rectangle_fitting_distance" value="10" />
-   <param name="fitting_accuracy" value="2" />
-        
-   <param name="seg_num" value="5" />
-   <rosparam param="seg_distance" > [15, 30, 45, 60, 120] </rosparam>
-   <rosparam param="cluster_distance" > [0.5, 1.0, 1.5, 2.0, 2.5] </rosparam>
+   <param name="seg_num" value="3" />
+   <rosparam param="seg_distance" > [20, 40, 60] </rosparam>
+   <rosparam param="cluster_distance" > [0.25, 0.5, 0.75] </rosparam>
+
+   <param name="road_info" value="true" />
+   <rosparam param="road_edge_left" > [0, 0, 0, 8.75] </rosparam>
+   <rosparam param="road_edge_right" > [0, 0, 0, -5.25] </rosparam>
    ```
     - `sub_topic`指明订阅的点云话题。
-    - `pub_ground_topic`指明发布的聚类结果话题。
-    - `oriented_rectangle_fitting_distance`为拟合带方向包络框的限制距离，单位为米。
-    - `fitting_accuracy`为拟合的方位角精度，单位为度。
-    - `seg_distance`为不同的聚类距离，单位为米。
-    - `cluster_distance`为不同的聚类阈值。
+    - `pub_topic`指明发布的聚类结果话题，类型为MarkerArray，可以用rviz查看。
+    - `min_cluster_points_num`和`max_cluster_points_num`为聚类点云数量限制。
+    - `min_cluster_size`和`max_cluster_size`为聚类点云尺寸限制，单位为米。
+    - `seg_distance`和`cluster_distance`为不同距离范围下的聚类阈值，单位为米。
+    - `road_edge_left`和`road_edge_right`为道路边缘的曲线参数，曲线形同y=ax^3+bx^2+cx+d。
 
 ## 运行
  - 启动`points_cluster`
