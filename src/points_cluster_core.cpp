@@ -16,7 +16,7 @@ EuCluster::EuCluster(ros::NodeHandle &nh)
     
     nh.param<int>("seg_num", seg_num_, 5);
     ros::param::get("~seg_distance", seg_distance_);
-	ros::param::get("~cluster_distance", cluster_distance_);
+    ros::param::get("~cluster_distance", cluster_distance_);
 
     nh.param<bool>("road_info", road_info_, false);
     
