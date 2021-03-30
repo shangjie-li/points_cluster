@@ -1,6 +1,10 @@
 #pragma once
 #include "omp.h"
 #include <ros/ros.h>
+#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <std_msgs/Header.h>
 
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_types.h>
@@ -20,21 +24,16 @@
 #include <pcl/search/organized.h>
 #include <pcl/search/kdtree.h>
 
-#include <std_msgs/Header.h>
-
-#include <jsk_recognition_msgs/BoundingBox.h>
-#include <jsk_recognition_msgs/BoundingBoxArray.h>
-
-#include <sensor_msgs/PointCloud2.h>
-
 #define PI 3.1415926
 
-class EuClusterCore
+class EuCluster
 {
-
 private:
     std::string sub_topic_;
     std::string pub_topic_;
+
+    bool show_objects_num_;
+    bool show_time_;
     
     double min_cluster_points_num_;
     double max_cluster_points_num_;
@@ -42,30 +41,32 @@ private:
     double min_cluster_size_;
     double max_cluster_size_;
     
-    double oriented_rectangle_fitting_distance_;
-    double fitting_accuracy_;
-    
     int seg_num_;
     std::vector<double> seg_distance_;
     std::vector<double> cluster_distance_;
 
-    ros::Subscriber sub_pointcloud;
-    ros::Publisher pub_boundingboxes;
+    bool road_info_;
+    std::vector<float> road_edge_left_;
+    std::vector<float> road_edge_right_;
 
-    std_msgs::Header pointcloud_header;
+    ros::Subscriber sub_;
+    ros::Publisher pub_;
+
+    void segment(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc_ptr,
+                        double cluster_distance,
+                        std::vector<visualization_msgs::Marker> &objs);
+
+    void cluster(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc_ptr,
+                        std::vector<visualization_msgs::Marker> &objs);
     
-    double point_project(pcl::PointXYZ &p1, pcl::PointXYZ &p2, pcl::PointXYZ &pp, pcl::PointXYZ &pp_);
-    
-    void find_rect(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc, pcl::PointXYZ &p_p1_best, pcl::PointXYZ &p_p2_best, pcl::PointXYZ &p_p3_best, pcl::PointXYZ &p_p4_best,
-               double &theta_best, double theta_min, double theta_max, double theta_interval);
+    void crop(const pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc_ptr,
+              const pcl::PointCloud<pcl::PointXYZ>::Ptr out_pc_ptr,
+              std::vector<float> edge_left,
+              std::vector<float> edge_right);
 
-    void cluster_segment(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc, double in_max_cluster_distance, std::vector<jsk_recognition_msgs::BoundingBox> &obj_list);
-
-    void cluster_by_distance(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc, std::vector<jsk_recognition_msgs::BoundingBox> &obj_list);
-
-    void point_cb(const sensor_msgs::PointCloud2ConstPtr &in_cloud_ptr);
+    void callback(const sensor_msgs::PointCloud2ConstPtr &in);
 
 public:
-    EuClusterCore(ros::NodeHandle &nh);
-    ~EuClusterCore();
+    EuCluster(ros::NodeHandle &nh);
+    ~EuCluster();
 };

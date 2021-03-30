@@ -8,7 +8,7 @@ int main(int argc, char **argv)
     
     omp_set_num_threads(4);
 
-    EuClusterCore core(nh);
+    EuCluster cluster(nh);
     
     return 0;
     

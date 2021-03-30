@@ -3,21 +3,25 @@
 <launch>
     <node pkg="points_cluster" type="points_cluster_node" name="points_cluster_node" output="screen">
         
-        <param name="sub_topic" value="/rslidar_points_no_ground" />
-        <param name="pub_topic" value="/clustered_bounding_boxes" />
+        <param name="sub_topic" value="/pandar_points_no_ground" />
+        <param name="pub_topic" value="/objects" />
+
+        <param name="show_objects_num" value="true"/>
+        <param name="show_time" value="true"/>
         
         <param name="min_cluster_points_num" value="5" />
-        <param name="max_cluster_points_num" value="4000" />
+        <param name="max_cluster_points_num" value="10000" />
         
-        <param name="min_cluster_size" value="0.1" />
-        <param name="max_cluster_size" value="10" />
+        <param name="min_cluster_size" value="0.2" />
+        <param name="max_cluster_size" value="4" />
         
-        <param name="oriented_rectangle_fitting_distance" value="10" />
-        <param name="fitting_accuracy" value="2" />
-        
-        <param name="seg_num" value="5" />
-        <rosparam param="seg_distance" > [15, 30, 45, 60, 75] </rosparam>
-        <rosparam param="cluster_distance" > [0.5, 1.0, 1.5, 2.0, 2.5] </rosparam>
+        <param name="seg_num" value="3" />
+        <rosparam param="seg_distance" > [20, 40, 60] </rosparam>
+        <rosparam param="cluster_distance" > [0.25, 0.5, 0.75] </rosparam>
+
+        <param name="road_info" value="true" />
+        <rosparam param="road_edge_left" > [0, 0, 0, 8.75] </rosparam>
+        <rosparam param="road_edge_right" > [0, 0, 0, -5.25] </rosparam>
     </node>
 
 </launch>
