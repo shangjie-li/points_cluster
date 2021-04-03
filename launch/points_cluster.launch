@@ -13,13 +13,13 @@
         <param name="max_cluster_points_num" value="50000" />
         
         <param name="min_cluster_size" value="0.2" />
-        <param name="max_cluster_size" value="4" />
+        <param name="max_cluster_size" value="5" />
         
         <param name="seg_num" value="3" />
-        <rosparam param="seg_distance" > [20, 40, 60] </rosparam>
-        <rosparam param="cluster_distance" > [0.25, 0.5, 0.75] </rosparam>
+        <rosparam param="seg_distance" > [30, 45, 60] </rosparam>
+        <rosparam param="cluster_distance" > [0.5, 0.75, 1.0] </rosparam>
 
-        <param name="road_info" value="false" />
+        <param name="road_info" value="true" />
         <rosparam param="road_edge_left" > [0, 0, 0, 8.75] </rosparam>
         <rosparam param="road_edge_right" > [0, 0, 0, -5.25] </rosparam>
     </node>
