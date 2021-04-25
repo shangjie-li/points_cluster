@@ -99,7 +99,14 @@ void EuCluster::segment(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc_ptr,
         int num_x = ceil((max_x - min_x) / max_cluster_size_);
         int num_y = ceil((max_y - min_y) / max_cluster_size_);
 
-        //在sub_pc_ptr中重新分配num_x*num_y个目标点云，使得每个目标点云的尺寸均满足要求
+        //超尺寸标志位
+        bool x_oversize = false;
+        bool y_oversize = false;
+
+        if (num_x > 1) x_oversize = true;
+        if (num_y > 1) y_oversize = true;
+
+        //在sub_pc_ptr中重新分配num_x*num_y个目标点云（OXY平面内划分），使得每个目标点云的尺寸均满足要求
         std::vector<std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>> ptrs;
         ptrs.resize(num_x, std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>(num_y));
         for (size_t nx = 0; nx < num_x; nx++)
@@ -161,7 +168,23 @@ void EuCluster::segment(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc_ptr,
                 float dimension_y = obj_max_y - obj_min_y;
                 float dimension_z = obj_max_z - obj_min_z;
 
+                //忽略尺寸很小的目标
                 if (dimension_x < min_cluster_size_ && dimension_y < min_cluster_size_ && dimension_z < min_cluster_size_) {continue;}
+
+                //忽略由于重新划分产生的尺寸很小的目标
+                double tolerant_size = max_cluster_size_ / 5;
+                if (x_oversize && y_oversize)
+                {
+                    if (dimension_x < tolerant_size && dimension_y < tolerant_size) {continue;}
+                }
+                else if (x_oversize && !y_oversize)
+                {
+                    if (dimension_x < tolerant_size) {continue;}
+                }
+                else if (y_oversize && !x_oversize)
+                {
+                    if (dimension_y < tolerant_size) {continue;}
+                }
 
                 //将聚类结果转换为Marker消息类型
                 visualization_msgs::Marker marker;
