@@ -18,8 +18,10 @@ ROS package for clustering points
    <param name="sub_topic" value="/pandar_points_no_ground" />
    <param name="pub_topic" value="/objects" />
 
-   <param name="show_objects_num" value="true"/>
-   <param name="show_time" value="true"/>
+   <param name="show_objects_num" value="true" />
+   <param name="show_time" value="true" />
+
+   <param name="fit_obb" value="true" />
    
    <param name="min_cluster_points_num" value="5" />
    <param name="max_cluster_points_num" value="10000" />
@@ -37,6 +39,7 @@ ROS package for clustering points
    ```
     - `sub_topic`指明订阅的点云话题。
     - `pub_topic`指明发布的聚类结果话题，类型为MarkerArray，可以用rviz查看。
+    - `fit_obb`如果设置为true，则对聚类目标拟合带方向包围盒，否则拟合不带方向包围盒。
     - `min_cluster_points_num`和`max_cluster_points_num`为聚类点云数量限制。
     - `min_cluster_size`和`max_cluster_size`为聚类点云尺寸限制，单位为米。
     - `seg_distance`和`cluster_distance`为不同距离范围下的聚类阈值，单位为米。
