@@ -18,6 +18,8 @@ catkin_package(
   CATKIN_DEPENDS roscpp sensor_msgs pcl_ros std_msgs
 )
 
+find_package(OpenCV)
+
 find_package(OpenMP)
 if (OPENMP_FOUND)
     set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
@@ -28,13 +30,14 @@ endif()
 include_directories(
  include
  ${catkin_INCLUDE_DIRS}
+ ${OpenCV_INCLUDE_DIRS}
 )
 link_directories(${PCL_LIBRARY_DIRS})
 
 add_executable(${PROJECT_NAME}_node src/points_cluster_node.cpp src/points_cluster_core.cpp)
 
-
 target_link_libraries(${PROJECT_NAME}_node
   ${catkin_LIBRARIES}
   ${PCL_LIBRARIES}
+  ${OpenCV_LIBS}
 )

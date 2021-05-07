@@ -1,6 +1,12 @@
 #pragma once
 #include "omp.h"
 #include <ros/ros.h>
+#include <opencv2/opencv.hpp>
+#include <assert.h>
+#include <ctime>
+#include <algorithm>
+#include <numeric>
+
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -34,6 +40,8 @@ private:
 
     bool show_objects_num_;
     bool show_time_;
+
+    bool fit_obb_;
     
     double min_cluster_points_num_;
     double max_cluster_points_num_;
@@ -52,12 +60,46 @@ private:
     ros::Subscriber sub_;
     ros::Publisher pub_;
 
-    void segment(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc_ptr,
-                        double cluster_distance,
-                        std::vector<visualization_msgs::Marker> &objs);
+    std::vector<size_t> sort_indexes(const std::vector<float> &v,
+                                 const bool &increase);
+    
+    void project_point_clouds_on_line(const std::vector<float> &xs,
+                                  const std::vector<float> &ys,
+                                  const float &x0,
+                                  const float &y0,
+                                  const float &phi,
+                                  float &xp_max,
+                                  float &yp_max,
+                                  float &xp_min,
+                                  float &yp_min);
 
-    void cluster(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc_ptr,
-                        std::vector<visualization_msgs::Marker> &objs);
+    float compute_distance_between_point_and_line(const float &x1,
+                                              const float &y1,
+                                              const float &x2,
+                                              const float &y2,
+                                              const float &x,
+                                              const float &y);
+
+    float compute_bounding_box_by_orientation(const std::vector<float> &xs,
+                                          const std::vector<float> &ys,
+                                          float &x0,
+                                          float &y0,
+                                          float &l,
+                                          float &w,
+                                          float &phi);
+
+    void fit_oriented_bounding_box(const pcl::PointCloud<pcl::PointXYZ>::Ptr &in_pc_ptr,
+                                          visualization_msgs::Marker &marker);
+    
+    void fit_bounding_box(const pcl::PointCloud<pcl::PointXYZ>::Ptr &in_pc_ptr,
+                                 visualization_msgs::Marker &marker);
+    
+    void segment(const pcl::PointCloud<pcl::PointXYZ>::Ptr &in_pc_ptr,
+                        double cluster_distance,
+                        visualization_msgs::MarkerArray &objs);
+
+    void cluster(const pcl::PointCloud<pcl::PointXYZ>::Ptr &in_pc_ptr,
+                        visualization_msgs::MarkerArray &objs);
     
     void crop(const pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc_ptr,
               const pcl::PointCloud<pcl::PointXYZ>::Ptr out_pc_ptr,

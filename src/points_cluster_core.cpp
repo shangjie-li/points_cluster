@@ -7,6 +7,8 @@ EuCluster::EuCluster(ros::NodeHandle &nh)
 
     nh.param<bool>("show_objects_num", show_objects_num_, false);
     nh.param<bool>("show_time", show_time_, false);
+
+    nh.param<bool>("fit_obb", fit_obb_, false);
     
     nh.param<double>("min_cluster_points_num", min_cluster_points_num_, 5);
     nh.param<double>("max_cluster_points_num", max_cluster_points_num_, 4000);
@@ -28,9 +30,336 @@ EuCluster::EuCluster(ros::NodeHandle &nh)
 
 EuCluster::~EuCluster(){}
 
-void EuCluster::segment(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc_ptr,
+std::vector<size_t> EuCluster::sort_indexes(const std::vector<float> &v,
+                                            const bool &increase)
+{
+    std::vector<size_t> idxes(v.size());
+    
+    iota(idxes.begin(), idxes.end(), 0);
+    
+    if(increase)
+        std::sort(idxes.begin(), idxes.end(), [&v](size_t i1, size_t i2) {return v[i1] < v[i2];});
+    else
+        std::sort(idxes.begin(), idxes.end(), [&v](size_t i1, size_t i2) {return v[i1] > v[i2];});
+    
+    return idxes;
+}
+
+void EuCluster::project_point_clouds_on_line(const std::vector<float> &xs,
+                                             const std::vector<float> &ys,
+                                             const float &x0,
+                                             const float &y0,
+                                             const float &phi,
+                                             float &xp_max,
+                                             float &yp_max,
+                                             float &xp_min,
+                                             float &yp_min)
+{
+    assert(phi >= 0 && phi < M_PI);
+    assert(xs.size() == ys.size());
+    size_t num = xs.size();
+    
+    // 代表直线方向的单位向量
+    float vx = cos(phi);
+    float vy = sin(phi);
+    
+    xp_max = -FLT_MAX;
+    yp_max = -FLT_MAX;
+    xp_min = FLT_MAX;
+    yp_min = FLT_MAX;
+    
+    if(fabs(vy) > 0.0001)
+    {
+        for(int i = 0; i < num; i++)
+        {
+            float yp = ys[i] * vy * vy + xs[i] * vx * vy + y0 * vx * vx - x0 * vx * vy;
+            float xp = ((yp - y0) * vx + x0 * vy) / vy;
+            
+            // 按纵坐标寻找两端点
+            if(yp > yp_max) {yp_max = yp; xp_max = xp;}
+            if(yp < yp_min) {yp_min = yp; xp_min = xp;}
+        }
+    }
+    else
+    {
+        for(int i = 0; i < num; i++)
+        {
+            float yp = y0;
+            float xp = xs[i];
+            
+            // 按横坐标寻找两端点
+            if(xp > xp_max) {xp_max = xp; yp_max = yp;}
+            if(xp < xp_min) {xp_min = xp; yp_min = yp;}
+        }
+    }
+}
+
+float EuCluster::compute_distance_between_point_and_line(const float &x1,
+                                                         const float &y1,
+                                                         const float &x2,
+                                                         const float &y2,
+                                                         const float &x,
+                                                         const float &y)
+{
+    float vx = x2 - x1;
+    float vy = y2 - y1;
+    float dis;
+    if(fabs(vx) > 0.0001)
+    {
+        float k = vy / vx;
+        dis = fabs(k * x - y - k * x1 + y1) / sqrt(k * k + 1);
+    }
+    else
+    {
+        dis = fabs(x - x1);
+    }
+    
+    return dis;
+}
+
+float EuCluster::compute_bounding_box_by_orientation(const std::vector<float> &xs,
+                                                     const std::vector<float> &ys,
+                                                     float &x0,
+                                                     float &y0,
+                                                     float &l,
+                                                     float &w,
+                                                     float &phi)
+{
+    assert(phi >= 0 && phi < M_PI);
+    assert(xs.size() == ys.size());
+    size_t num = xs.size();
+    
+    float angle = phi;
+    float angle_second;
+    if(angle < M_PI / 2) angle_second = angle + M_PI / 2;
+    else angle_second = angle - M_PI / 2;
+    
+    // 将点云投影至局部坐标系
+    float xp1, yp1, xp2, yp2;
+    project_point_clouds_on_line(xs, ys, 0, 0, angle, xp1, yp1, xp2, yp2);
+    float xp3, yp3, xp4, yp4;
+    project_point_clouds_on_line(xs, ys, 0, 0, angle_second, xp3, yp3, xp4, yp4);
+    
+    // 计算投影点与原点的距离，选出近点和远点
+    float dd1 = xp1 * xp1 + yp1 * yp1;
+    float dd2 = xp2 * xp2 + yp2 * yp2;
+    float dd3 = xp3 * xp3 + yp3 + yp3;
+    float dd4 = xp4 * xp4 + yp4 + yp4;
+    
+    float xpl_near = dd1 < dd2 ? xp1 : xp2;
+    float ypl_near = dd1 < dd2 ? yp1 : yp2;
+    float xpl_far = dd1 < dd2 ? xp2 : xp1;
+    float ypl_far = dd1 < dd2 ? yp2 : yp1;
+    
+    float xpw_near = dd3 < dd4 ? xp3 : xp4;
+    float ypw_near = dd3 < dd4 ? yp3 : yp4;
+    float xpw_far = dd3 < dd4 ? xp4 : xp3;
+    float ypw_far = dd3 < dd4 ? yp4 : yp3;
+    
+    // 根据近点和远点计算包围盒顶点
+    float xnn = xpl_near + xpw_near;
+    float ynn = ypl_near + ypw_near;
+    
+    float xfn = xpl_far + xpw_near;
+    float yfn = ypl_far + ypw_near;
+    
+    float xff = xpl_far + xpw_far;
+    float yff = ypl_far + ypw_far;
+    
+    float xnf = xpl_near + xpw_far;
+    float ynf = ypl_near + ypw_far;
+    
+    // 计算包围盒的长宽
+    l = sqrt(pow(xp1 - xp2, 2) + pow(yp1 - yp2, 2));
+    w = sqrt(pow(xp3 - xp4, 2) + pow(yp3 - yp4, 2));
+    
+    if(l >= w) phi = angle;
+    else{phi = angle_second; float temp = l; l = w; w = temp;}
+    
+    x0 = (xp1 + xp2 + xp3 + xp4) / 2;
+    y0 = (yp1 + yp2 + yp3 + yp4) / 2;
+    
+    // 计算特征距离和（Sum of Characteristic Distance，SCD）
+    float scd = 0;
+    for(int i = 0; i < num; i++)
+    {
+        float dis1 = compute_distance_between_point_and_line(xnn, ynn, xfn, yfn, xs[i], ys[i]);
+        float dis2 = compute_distance_between_point_and_line(xfn, yfn, xff, yff, xs[i], ys[i]);
+        float dis3 = compute_distance_between_point_and_line(xff, yff, xnf, ynf, xs[i], ys[i]);
+        float dis4 = compute_distance_between_point_and_line(xnf, ynf, xnn, ynn, xs[i], ys[i]);
+        
+        // 找最小值
+        std::vector<float> dises = {dis1, dis2, dis3, dis4};
+        std::vector<size_t> idxes = sort_indexes(dises, true);
+        scd += dises[idxes[0]];
+    }
+    
+    return scd;
+}
+
+void EuCluster::fit_oriented_bounding_box(const pcl::PointCloud<pcl::PointXYZ>::Ptr &in_pc_ptr,
+                                          visualization_msgs::Marker &marker)
+{
+    size_t num = in_pc_ptr->points.size();
+    assert(num > 0);
+
+    std::vector<float> xs, ys;
+    xs.resize(num);
+    ys.resize(num);
+    for (int i = 0; i < num; i++)
+    {
+        xs[i] = in_pc_ptr->points[i].x;
+        ys[i] = in_pc_ptr->points[i].y;
+    }
+    
+    // 转换点的类型
+    std::vector<cv::Point> points;
+    points.resize(num);
+    for(int i = 0; i < num; i++)
+    {
+        points[i].x = (int)(xs[i] * 100);
+        points[i].y = (int)(ys[i] * 100);
+    }
+    
+    // STEP1：计算凸包
+    std::vector<cv::Point> hull;
+    convexHull(points, hull, false);
+    
+    // STEP2：逼近多边形
+    std::vector<cv::Point> approximated_hull;
+    approxPolyDP(hull, approximated_hull, 10, true); // 逼近精度0.1m
+    
+    // STEP3：计算轮廓中最长的m条线段对应的方向角
+    int m = approximated_hull.size() < 4 ? approximated_hull.size() : 4;
+    std::vector<float> distances, angles;
+    size_t hull_size = approximated_hull.size();
+    
+    for(int j = 0; j < hull_size; j++)
+    {
+        float x1 = approximated_hull[j].x;
+        float y1 = approximated_hull[j].y;
+        float x2 = approximated_hull[(j + 1) % hull_size].x;
+        float y2 = approximated_hull[(j + 1) % hull_size].y;
+        
+        float dx = x2 - x1;
+        float dy = y2 - y1;
+        
+        float dis, ang;
+        
+        dis = sqrt(pow(dx, 2) + pow(dy, 2));
+        distances.push_back(dis);
+        
+        if(dx == 0) ang = M_PI / 2;
+        else ang = atan(dy / dx);
+        if(ang < 0) ang += M_PI; // ang范围在[0, M_PI)
+        angles.push_back(ang);
+    }
+    
+    std::vector<float> angles_sorted;
+    std::vector<size_t> idxes = sort_indexes(distances, false);
+    for(int j = 0; j < m; j++)
+    {
+        angles_sorted.push_back(angles[idxes[j]]);
+    }
+    
+    // STEP4：对每个方向角拟合2D带方向包围盒，并根据特征距离和（SCD）选取最佳包围盒
+    float x0m, y0m, lm, wm, phim;
+    float scd_min = FLT_MAX;
+    
+    for(int j = 0; j < m; j++)
+    {
+        float phi = angles_sorted[j];
+        float x0, y0, l, w;
+        
+        // 根据phi计算x0 y0 l w，有可能根据l和w的关系更改phi，同时返回scd
+        float scd = compute_bounding_box_by_orientation(xs, ys, x0, y0, l, w, phi);
+        
+        if(scd < scd_min)
+        {
+            scd_min = scd;
+            
+            x0m = x0;
+            y0m = y0;
+            lm = l;
+            wm = w;
+            phim = phi;
+        }
+    }
+
+    float obj_min_z = std::numeric_limits<float>::max();
+    float obj_max_z = -std::numeric_limits<float>::max();
+
+    for (int i = 0; i < num; i++)
+    {
+        if (in_pc_ptr->points[i].z < obj_min_z)
+            obj_min_z = in_pc_ptr->points[i].z;
+        if (in_pc_ptr->points[i].z > obj_max_z)
+            obj_max_z = in_pc_ptr->points[i].z;
+    }
+
+    //设置标记位姿
+    marker.pose.position.x = x0m;
+    marker.pose.position.y = y0m;
+    marker.pose.position.z = (obj_min_z + obj_max_z) / 2;
+    marker.pose.orientation.x = 0;
+    marker.pose.orientation.y = 0;
+    marker.pose.orientation.z = sin(0.5 * phim);
+    marker.pose.orientation.w = cos(0.5 * phim);
+
+    //设置标记尺寸
+    marker.scale.x = lm;
+    marker.scale.y = wm;
+    marker.scale.z = obj_max_z - obj_min_z;
+
+}
+
+void EuCluster::fit_bounding_box(const pcl::PointCloud<pcl::PointXYZ>::Ptr &in_pc_ptr,
+                                 visualization_msgs::Marker &marker)
+{
+    //拟合3D包围盒
+    float obj_min_x = std::numeric_limits<float>::max();
+    float obj_max_x = -std::numeric_limits<float>::max();
+    float obj_min_y = std::numeric_limits<float>::max();
+    float obj_max_y = -std::numeric_limits<float>::max();
+    float obj_min_z = std::numeric_limits<float>::max();
+    float obj_max_z = -std::numeric_limits<float>::max();
+
+    for (size_t p = 0; p < in_pc_ptr->points.size(); p++)
+    {
+        if (in_pc_ptr->points[p].x < obj_min_x)
+            obj_min_x = in_pc_ptr->points[p].x;
+        if (in_pc_ptr->points[p].x > obj_max_x)
+            obj_max_x = in_pc_ptr->points[p].x;
+        if (in_pc_ptr->points[p].y < obj_min_y)
+            obj_min_y = in_pc_ptr->points[p].y;
+        if (in_pc_ptr->points[p].y > obj_max_y)
+            obj_max_y = in_pc_ptr->points[p].y;
+        if (in_pc_ptr->points[p].z < obj_min_z)
+            obj_min_z = in_pc_ptr->points[p].z;
+        if (in_pc_ptr->points[p].z > obj_max_z)
+            obj_max_z = in_pc_ptr->points[p].z;
+    }
+
+    float phi = 0;
+
+    //设置标记位姿
+    marker.pose.position.x = (obj_min_x + obj_max_x) / 2;
+    marker.pose.position.y = (obj_min_y + obj_max_y) / 2;
+    marker.pose.position.z = (obj_min_z + obj_max_z) / 2;
+    marker.pose.orientation.x = 0;
+    marker.pose.orientation.y = 0;
+    marker.pose.orientation.z = sin(0.5 * phi);
+    marker.pose.orientation.w = cos(0.5 * phi);
+
+    //设置标记尺寸
+    marker.scale.x = obj_max_x - obj_min_x;
+    marker.scale.y = obj_max_y - obj_min_y;
+    marker.scale.z = obj_max_z - obj_min_z;
+}
+
+void EuCluster::segment(const pcl::PointCloud<pcl::PointXYZ>::Ptr &in_pc_ptr,
                         double cluster_distance,
-                        std::vector<visualization_msgs::Marker> &objs)
+                        visualization_msgs::MarkerArray &objs)
 {
     pcl::search::KdTree<pcl::PointXYZ>::Ptr tree_ptr(new pcl::search::KdTree<pcl::PointXYZ>);
 
@@ -68,11 +397,7 @@ void EuCluster::segment(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc_ptr,
 
         for (auto pit = local_indices[i].indices.begin(); pit != local_indices[i].indices.end(); ++pit)
         {
-            pcl::PointXYZ new_point;
-            new_point.x = in_pc_ptr->points[*pit].x;
-            new_point.y = in_pc_ptr->points[*pit].y;
-            new_point.z = in_pc_ptr->points[*pit].z;
-            sub_pc_ptr->points.push_back(new_point);
+            sub_pc_ptr->points.push_back(in_pc_ptr->points[*pit]);
         }
 
         //计算尺寸
@@ -120,14 +445,10 @@ void EuCluster::segment(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc_ptr,
 
         for (size_t p = 0; p < sub_pc_ptr->points.size(); p++)
         {
-            auto x_idx = (size_t)floor((sub_pc_ptr->points[p].x - min_x) / max_cluster_size_);
-            auto y_idx = (size_t)floor((sub_pc_ptr->points[p].y - min_y) / max_cluster_size_);
+            size_t x_idx = floor((sub_pc_ptr->points[p].x - min_x) / max_cluster_size_);
+            size_t y_idx = floor((sub_pc_ptr->points[p].y - min_y) / max_cluster_size_);
 
-            pcl::PointXYZ new_point;
-            new_point.x = sub_pc_ptr->points[p].x;
-            new_point.y = sub_pc_ptr->points[p].y;
-            new_point.z = sub_pc_ptr->points[p].z;
-            ptrs[x_idx][y_idx]->points.push_back(new_point);
+            ptrs[x_idx][y_idx]->points.push_back(sub_pc_ptr->points[p]);
         }
 
         //对num_x*num_y个目标拟合3D包围盒
@@ -135,83 +456,48 @@ void EuCluster::segment(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc_ptr,
         {
             for (size_t ny = 0; ny < num_y; ny++)
             {
-                pcl::PointCloud<pcl::PointXYZ>::Ptr obj_pc_ptr(new pcl::PointCloud<pcl::PointXYZ>);
-                obj_pc_ptr = ptrs[nx][ny];
+                //将聚类结果转换为Marker消息类型
+                visualization_msgs::Marker marker;
 
                 //拟合3D包围盒
-                float obj_min_x = std::numeric_limits<float>::max();
-                float obj_max_x = -std::numeric_limits<float>::max();
-                float obj_min_y = std::numeric_limits<float>::max();
-                float obj_max_y = -std::numeric_limits<float>::max();
-                float obj_min_z = std::numeric_limits<float>::max();
-                float obj_max_z = -std::numeric_limits<float>::max();
-
-                for (size_t p = 0; p < obj_pc_ptr->points.size(); p++)
+                if(fit_obb_)
                 {
-                    if (obj_pc_ptr->points[p].x < obj_min_x)
-                        obj_min_x = obj_pc_ptr->points[p].x;
-                    if (obj_pc_ptr->points[p].x > obj_max_x)
-                        obj_max_x = obj_pc_ptr->points[p].x;
-                    if (obj_pc_ptr->points[p].y < obj_min_y)
-                        obj_min_y = obj_pc_ptr->points[p].y;
-                    if (obj_pc_ptr->points[p].y > obj_max_y)
-                        obj_max_y = obj_pc_ptr->points[p].y;
-                    if (obj_pc_ptr->points[p].z < obj_min_z)
-                        obj_min_z = obj_pc_ptr->points[p].z;
-                    if (obj_pc_ptr->points[p].z > obj_max_z)
-                        obj_max_z = obj_pc_ptr->points[p].z;
+                    if(ptrs[nx][ny]->points.size() == 0) {continue;}
+                    fit_oriented_bounding_box(ptrs[nx][ny], marker);
+                }
+                else
+                {
+                    fit_bounding_box(ptrs[nx][ny], marker);
                 }
 
-                float phi = 0;
-
-                float dimension_x = obj_max_x - obj_min_x;
-                float dimension_y = obj_max_y - obj_min_y;
-                float dimension_z = obj_max_z - obj_min_z;
-
                 //忽略尺寸很小的目标
-                if (dimension_x < min_cluster_size_ && dimension_y < min_cluster_size_ && dimension_z < min_cluster_size_) {continue;}
-
+                if(marker.scale.x < min_cluster_size_ && marker.scale.y < min_cluster_size_ && marker.scale.z < min_cluster_size_)
+                    continue;
+                
                 //忽略由于重新划分产生的尺寸很小的目标
                 double tolerant_size = max_cluster_size_ / 5;
                 if (x_oversize && y_oversize)
                 {
-                    if (dimension_x < tolerant_size && dimension_y < tolerant_size) {continue;}
+                    if (marker.scale.x < tolerant_size && marker.scale.y < tolerant_size) {continue;}
                 }
                 else if (x_oversize && !y_oversize)
                 {
-                    if (dimension_x < tolerant_size) {continue;}
+                    if (marker.scale.x < tolerant_size) {continue;}
                 }
                 else if (y_oversize && !x_oversize)
                 {
-                    if (dimension_y < tolerant_size) {continue;}
+                    if (marker.scale.y < tolerant_size) {continue;}
                 }
 
-                //将聚类结果转换为Marker消息类型
-                visualization_msgs::Marker marker;
-
-                //设置标记位姿
-                marker.pose.position.x = (obj_min_x + obj_max_x) / 2;
-                marker.pose.position.y = (obj_min_y + obj_max_y) / 2;
-                marker.pose.position.z = (obj_min_z + obj_max_z) / 2;
-                marker.pose.orientation.x = 0;
-                marker.pose.orientation.y = 0;
-                marker.pose.orientation.z = sin(0.5 * phi);
-                marker.pose.orientation.w = cos(0.5 * phi);
-
-                //设置标记尺寸
-                marker.scale.x = dimension_x;
-                marker.scale.y = dimension_y;
-                marker.scale.z = dimension_z;
-
-                objs.push_back(marker);
+                objs.markers.push_back(marker);
             }
         }
 
     }
 }
 
-void EuCluster::cluster(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc_ptr,
-                        std::vector<visualization_msgs::Marker> &objs)
+void EuCluster::cluster(const pcl::PointCloud<pcl::PointXYZ>::Ptr &in_pc_ptr,
+                        visualization_msgs::MarkerArray &objs)
 {
     //根据分区，定义子云
     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> pc_ptr_array(seg_num_);
@@ -225,18 +511,13 @@ void EuCluster::cluster(pcl::PointCloud<pcl::PointXYZ>::Ptr in_pc_ptr,
     #pragma omp for
     for (size_t i = 0; i < in_pc_ptr->points.size(); i++)
     {
-        pcl::PointXYZ current_point;
-        current_point.x = in_pc_ptr->points[i].x;
-        current_point.y = in_pc_ptr->points[i].y;
-        current_point.z = in_pc_ptr->points[i].z;
-
-        float distance = sqrt(pow(current_point.x, 2) + pow(current_point.y, 2));
+        float distance = sqrt(pow(in_pc_ptr->points[i].x, 2) + pow(in_pc_ptr->points[i].y, 2));
 
         for (size_t j = 0; j < pc_ptr_array.size(); j++)
         {
             if (distance < seg_distance_[j])
             {
-                pc_ptr_array[j]->points.push_back(current_point);
+                pc_ptr_array[j]->points.push_back(in_pc_ptr->points[i]);
                 break;
             }
         }
@@ -293,35 +574,32 @@ void EuCluster::callback(const sensor_msgs::PointCloud2ConstPtr &in)
         cropped_pc_ptr = current_pc_ptr;
     }
     
-    std::vector<visualization_msgs::Marker> objs;
+    visualization_msgs::MarkerArray objs;
     cluster(cropped_pc_ptr, objs);
     
-    visualization_msgs::MarkerArray msg;
-    for (size_t i = 0; i < objs.size(); i++)
+    for (size_t i = 0; i < objs.markers.size(); i++)
     {
-        objs[i].header = in->header;
+        objs.markers[i].header = in->header;
 
         //设置该标记的命名空间和ID，ID应该是独一无二的
         //具有相同命名空间和ID的标记将会覆盖前一个
-        objs[i].ns = "obstacle";
-        objs[i].id = i;
+        objs.markers[i].ns = "obstacle";
+        objs.markers[i].id = i;
         
         //设置标记类型
-        objs[i].type = visualization_msgs::Marker::CUBE;
+        objs.markers[i].type = visualization_msgs::Marker::CUBE;
         
         //设置标记行为：ADD为添加，DELETE为删除
-        objs[i].action = visualization_msgs::Marker::ADD;
+        objs.markers[i].action = visualization_msgs::Marker::ADD;
 
         //设置标记颜色，确保不透明度alpha不为0
-        objs[i].color.r = 0.8f;
-        objs[i].color.g = 0.0f;
-        objs[i].color.b = 0.0f;
-        objs[i].color.a = 0.85;
+        objs.markers[i].color.r = 0.8f;
+        objs.markers[i].color.g = 0.0f;
+        objs.markers[i].color.b = 0.0f;
+        objs.markers[i].color.a = 0.85;
 
-        objs[i].lifetime = ros::Duration(0.1);
-        objs[i].text = ' ';
-
-        msg.markers.push_back(objs[i]);
+        objs.markers[i].lifetime = ros::Duration(0.1);
+        objs.markers[i].text = ' ';
     }
 
     ros::Time time_end = ros::Time::now();
@@ -333,7 +611,7 @@ void EuCluster::callback(const sensor_msgs::PointCloud2ConstPtr &in)
 
     if (show_objects_num_)
     {
-        std::cout<<"size of objects:"<<objs.size()<<std::endl;
+        std::cout<<"size of objects:"<<objs.markers.size()<<std::endl;
     }
 
     if (show_time_)
@@ -341,7 +619,7 @@ void EuCluster::callback(const sensor_msgs::PointCloud2ConstPtr &in)
         std::cout<<"cost time:"<<time_end - time_start<<"s"<<std::endl;
     }
 
-    pub_.publish(msg);
+    pub_.publish(objs);
 }
 
 
