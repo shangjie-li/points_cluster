@@ -4,11 +4,8 @@
   <version>0.0.1</version>
   <description>The points_cluster package</description>
 
-
   <maintainer email="1814481684@qq.com">lishangjie</maintainer>
-
   <license>TODO</license>
-
 
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>roscpp</build_depend>
@@ -20,4 +17,5 @@
   <run_depend>sensor_msgs</run_depend>
   <run_depend>pcl_ros</run_depend>
   <run_depend>std_msgs</run_depend>
+  
 </package>

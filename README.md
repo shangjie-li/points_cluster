@@ -38,7 +38,7 @@ ROS package for clustering points
    <rosparam param="road_edge_right" > [0, 0, 0, -5.25] </rosparam>
    ```
     - `sub_topic`指明订阅的点云话题。
-    - `pub_topic`指明发布的聚类结果话题，类型为MarkerArray，可以用rviz查看。
+    - `pub_topic`指明发布的聚类结果话题，类型为MarkerArray，可以通过RVIZ查看。
     - `fit_obb`如果设置为true，则对聚类目标拟合带方向包围盒，否则拟合不带方向包围盒。
     - `min_cluster_points_num`和`max_cluster_points_num`为聚类点云数量限制。
     - `min_cluster_size`和`max_cluster_size`为聚类点云尺寸限制，单位为米。

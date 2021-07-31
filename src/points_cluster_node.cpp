@@ -1,6 +1,6 @@
 #include "points_cluster_core.h"
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
     ros::init(argc, argv, "points_cluster");
 
@@ -11,5 +11,4 @@ int main(int argc, char **argv)
     EuCluster cluster(nh);
     
     return 0;
-    
 }
